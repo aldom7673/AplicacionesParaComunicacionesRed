@@ -4,10 +4,14 @@ import socket
 import pickle
 import os
 import datetime
+import threading
 
 HOST = ""  # The server's hostname or IP address
-PORT = 0 # The port used by the server
+PORT = 0# The port used by the server
 buffer_size = 1024
+tablero = []
+x = 0
+JUEGO_TERMINADO = False
 
 HOST = input( "Ingresa la IP del servidor: ")
 
@@ -19,7 +23,14 @@ while(True):
             break
     input( "Verifica el puerto. Presiona enter para continuar ... ")
 
-def ImprimirTablero(tablero):
+def ImprimirTablero(aux):
+    global x
+    if x == 0:
+        x = aux
+    else :
+        return
+    os.system("clear")
+    print("")
     linea = "    "
     for i in range(0, 4*l - 3):
         linea += "_"
@@ -28,6 +39,7 @@ def ImprimirTablero(tablero):
     if(l == 5): 
         letras += "   D   E"
     print(letras)
+    x = 0
 
     for i in range(0, l):
         print( i + 1, end='   ')
@@ -55,8 +67,18 @@ def VerificarTiro( tiroCliente, l, tablero):
 def MostrarMensaje( mensaje ):
     input( mensaje )
 
+def EnviarCoordenada(conn, dato):
+    while(not JUEGO_TERMINADO):
+        ImprimirTablero(2)
+        tiroCliente = input( "Ingresa la coordenada de tu casilla con el formato letra,numero : \n")
+        
+        if( JUEGO_TERMINADO ):
+            break
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPClientSocket:
+        if( VerificarTiro(tiroCliente,l,datoRecibido) ):
+            conn.sendall(pickle.dumps(tiroCliente))
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPClientSocket:    
     TCPClientSocket.connect((HOST, PORT))
         
     while(True):
@@ -79,26 +101,24 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPClientSocket:
                 TCPClientSocket.sendall(str.encode(nivel))
                 break
         input( "Nivel no valido, por favor intenta de nuevo. Presiona enter para continuar..." )
+    
+    print("Esperando tablero de juego ...")
+    datoRecibido = pickle.loads(TCPClientSocket.recv(buffer_size))
+    tablero = datoRecibido
+    thread_read = threading.Thread(target=EnviarCoordenada, args=[TCPClientSocket, datoRecibido])
+    thread_read.start() 
 
-    os.system("clear")
-    print("Esperando tablero de juego ...")    
-    while(True):
+    while(not JUEGO_TERMINADO):
+        ImprimirTablero(1)
+        print( "\nIngresa la coordenada de tu casilla con el formato letra,numero : ")
         datoRecibido = pickle.loads(TCPClientSocket.recv(buffer_size))
+        tablero = datoRecibido
         if(datoRecibido[l] == 'FIN'):
-            os.system("clear")
-            print(datoRecibido[l+1])
-            print("Tiempo de juego: " + datoRecibido[l+2])
-            ImprimirTablero(datoRecibido)
+            JUEGO_TERMINADO = True
             break
 
-        if(not datoRecibido[l]): #Turno del cliente
-            while(True):
-                os.system("clear")
-                ImprimirTablero(datoRecibido)
-                tiroCliente = input( "Ingresa la coordenada de tu casilla con el formato letra,numero : ")                
-                if( VerificarTiro(tiroCliente,l,datoRecibido) ):
-                    TCPClientSocket.sendall(pickle.dumps(tiroCliente))
-                    break
-        else:
-            print("Esperando tiro del servidor ...")
-            
+    os.system("clear")
+    ImprimirTablero(1)
+    print( datoRecibido[ l+1 ] )
+    print( datoRecibido[l + 2] )    
+    print( "Pulsa enter para continuar ... " )

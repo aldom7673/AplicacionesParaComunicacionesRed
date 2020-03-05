@@ -5,7 +5,7 @@ import time
 def LeerBaseDatos(lock, numeroHilo):
     #print( "El hilo de lectura " + str(numeroHilo) + " intenta leer de la base de datos " )
     while True:
-        have_it = lock.acquire(0)
+        have_it = lock.acquire(0) # 0  -  No bloquea la ejecucion del hilo
         try:
             if have_it:
                 print( "El hilo " + str(numeroHilo) + " de lectura ACCEDIO a al base de datos" )

@@ -5,6 +5,7 @@ import sys
 import threading
 import datetime
 import pickle
+import time
 
 BUFFER_SIZE =  1024
 l = 0
@@ -49,18 +50,22 @@ def InicializarTablero( nivel ):
         tablero.append(aux)
 
 def ServirPorSiempre(socketTcp, numeroConexiones):
+    global l
     try:
+        condicionEsperarJugadores = threading.Condition()
+        condicionTurnoActivo = threading.Condition()
         while True:
             client_conn, client_addr = socketTcp.accept()
             print("Conectado a", client_addr)
 
-            print("Esperando el nivel de juego ... ")
-            nivel = client_conn.recv(BUFFER_SIZE)
-            print ("Recibido, nivel escogido : ", nivel,"   de : ", client_addr)
+            client_conn.sendall(str(l).encode())
+            if( l == 0):
+                print("Esperando el nivel de juego ... ")
+                nivel = client_conn.recv(BUFFER_SIZE)
+                print ("Recibido, nivel escogido : ", nivel,"   de : ", client_addr)
 
-            global l
             if( l == 0): # Se juega con el primer tablero que se haya creado
-                inicio = datetime.datetime.now()                
+                inicio = datetime.datetime.now()
                 if( int( nivel ) == 1 ):
                     l = 3
                 else:
@@ -73,14 +78,24 @@ def ServirPorSiempre(socketTcp, numeroConexiones):
                 for i in range (1, l * l + 1):
                     listaPosicionesLibres.append(i)
 
-                for i in range(1, l + 1):
+                for i in range(1, int(numeroConexiones) + 1):
                     identificadores.append(str(i))
 
                 InicializarTablero( l )
             listaconexiones.append(client_conn)
             identificador = identificadores[ len(listaconexiones) - 1 ]
-            thread_read = threading.Thread(target=RecibirTiros, args=[client_conn, client_addr, identificador])
+            thread_read = threading.Thread(target=RecibirTiros, args=[client_conn, client_addr, identificador, condicionEsperarJugadores, condicionTurnoActivo, ])
             thread_read.start()
+                
+            with condicionEsperarJugadores:
+                if(int(numeroConexiones) == len(listaconexiones)):
+                    print("Se han conectado todos los jugadores")
+                    thread_read_tiros = threading.Thread(target=GestionarTiros, args=[identificadores, condicionTurnoActivo, condicionEsperarJugadores, ])
+                    thread_read_tiros.start()               
+                else:
+                    print("En espera de " + str(int(numeroConexiones) - len(listaconexiones)) + " conexiones")                    
+                condicionEsperarJugadores.notifyAll()
+
             gestion_conexiones()
     except Exception as e:
         print(e)
@@ -90,9 +105,36 @@ def gestion_conexiones():
         if conn.fileno() == -1:
             listaconexiones.remove(conn)
     print("hilos activos:", threading.active_count())
-    print("enum", threading.enumerate())
+    #print("enum", threading.enumerate())
     print("conexiones: ", len(listaconexiones))
-    print(listaconexiones)
+    #print(listaconexiones)
+
+def GestionarTiros(identificadores, condicionTurnoActivo, condicionEsperarJugadores):    
+    global JUEGO_TERMINADO
+    global TURNO_JUGADOR
+    global l
+    turnojugador = 0
+    while(not JUEGO_TERMINADO):
+        time.sleep(0.5)
+        #Determina que jugador puede tirar
+        with condicionTurnoActivo:
+            TURNO_JUGADOR = identificadores[turnojugador % len(identificadores)]
+            print("Turno del jugador " + TURNO_JUGADOR)            
+            condicionTurnoActivo.notifyAll()
+        #Espera a que el jugador notifique que termino su turno
+        with condicionEsperarJugadores:
+            condicionEsperarJugadores.wait()
+        turnojugador += 1 
+    
+    with condicionTurnoActivo:
+        condicionTurnoActivo.notifyAll()
+    time.sleep(0.5)
+    EnviarTableroAClientes(JUEGO_TERMINADO)
+    tablero.clear()
+    listaconexiones.clear()    
+    l = 0
+    print("hilos activos:", threading.active_count())
+    JUEGO_TERMINADO = False
 
 def VerificarTiro( tiroCliente, identificador):
     coordenadas = tiroCliente.split(',')
@@ -158,55 +200,67 @@ def VerificarTablero(x, y, identificador):
     id_Ganador = identificador
     return True
 
-def EnviarTableroAClientes(JUEGO_TERMINADO = False):
+def EnviarTableroAClientes(JUEGO_TERMINADO = False, identificador = ''):
     i = 0
     for conn in listaconexiones:
         datoEnviar = []
-        datoEnviar = tablero.copy()        
+        datoEnviar = tablero.copy()
         if( JUEGO_TERMINADO ):
-            datoEnviar.append('FIN')        
+            datoEnviar.append('FIN')
             if( id_Ganador == "-1" ):
                 datoEnviar.append( "El juego ha terminado en empate" )
             elif( id_Ganador == identificadores[i] ):
                 datoEnviar.append( "Usted ha ganado" )
             else:
                 datoEnviar.append( "Usted ha perdido" )
-            print(inicio)
             fin = str( datetime.datetime.now() - inicio )
             datoEnviar.append("Tiempo de juego: " + fin)
             i += 1
         else:
-            datoEnviar.append( JUEGO_TERMINADO )
-        print(datoEnviar)
-        conn.sendall(pickle.dumps(datoEnviar))
-
-def RecibirTiros(conn, addr, identificador):
-    try:
-        cur_thread = threading.current_thread()
-        JUEGO_TERMINADO = False
-        while not JUEGO_TERMINADO:
-            datoEnviar = []
-            datoEnviar = tablero.copy()
             datoEnviar.append(JUEGO_TERMINADO)
-            EnviarTableroAClientes()
-            print("Esperando tiro del cliente ", addr)
-            tiroCliente = conn.recv(BUFFER_SIZE)
-            if ( VerificarTiro( pickle.loads(tiroCliente), identificador)):
-                coordenadas = pickle.loads(tiroCliente).split(',')
-                JUEGO_TERMINADO = VerificarTablero(int( coordenadas[1] ) - 1, ord( coordenadas[0] ) - 65, identificador)
-        EnviarTableroAClientes(JUEGO_TERMINADO)
+            datoEnviar.append(identificadores[i] == identificador)
+            datoEnviar.append(identificador)
+            i += 1
+        conn.sendall(pickle.dumps(datoEnviar))
+        if(JUEGO_TERMINADO):
+            print("Cerrando conexion " + str(i))
+            conn.close()
+
+def RecibirTiros(conn, addr, identificador, condicionEsperarJugadores, condicionTurnoActivo):
+    global JUEGO_TERMINADO
+    try:
+        while True:
+            with condicionEsperarJugadores:
+                condicionEsperarJugadores.wait()
+                if(conexiones == len(listaconexiones)):
+                    print("Enviando inicio de juego")
+                    conn.sendall( b'0' )
+                    break
+                else:
+                    conn.sendall( str(conexiones - len(listaconexiones)).encode() )
+        JUEGO_TERMINADO = False
+
+        while not JUEGO_TERMINADO:
+            with condicionTurnoActivo:
+                condicionTurnoActivo.wait()
+                if( TURNO_JUGADOR == identificador and not JUEGO_TERMINADO):
+                    with condicionEsperarJugadores:
+                        datoEnviar = []
+                        datoEnviar = tablero.copy()
+                        EnviarTableroAClientes(identificador=TURNO_JUGADOR)
+                        print("Esperando tiro del cliente ", addr)
+                        tiroCliente = conn.recv(BUFFER_SIZE)
+                        if ( VerificarTiro( pickle.loads(tiroCliente), identificador)):
+                            coordenadas = pickle.loads(tiroCliente).split(',')
+                            JUEGO_TERMINADO = VerificarTablero(int( coordenadas[1] ) - 1, ord( coordenadas[0] ) - 65, identificador)
+                        condicionEsperarJugadores.notify() #Notifica al gestor de tiros que el cliente ha tirado
+                else:
+                    print ("No es turno del jugador con identificador " + identificador)
+
     except Exception as e:
         print(e)
     finally:
-        print(conn)
-        print(listaconexiones)
-        listaconexiones.remove(conn)
-        print(listaconexiones)
-        conn.close()
-        if( len(listaconexiones) == 0):
-            tablero.clear()
-            global l 
-            l = 0
+        print("SALIENDO jugador " + identificador  +  " ... ")
 
 host, port, numConn = sys.argv[1:4]
 
@@ -215,11 +269,12 @@ if len(sys.argv) != 4:
     sys.exit(1)
 
 serveraddr = (host, int(port))
-
+TURNO_JUGADOR = ''
+conexiones = 0
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPServerSocket:
     TCPServerSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     TCPServerSocket.bind(serveraddr)
     TCPServerSocket.listen(int(numConn))
+    conexiones = int(numConn)
     print("El servidor TCP está disponible y en espera de solicitudes")
-
     ServirPorSiempre(TCPServerSocket, int(numConn))

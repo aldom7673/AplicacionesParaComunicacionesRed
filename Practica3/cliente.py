@@ -10,9 +10,10 @@ HOST = ""  # The server's hostname or IP address
 PORT = 0# The port used by the server
 buffer_size = 1024
 tablero = []
-x = 0
+l = 0
 JUEGO_TERMINADO = False
-
+X_Validas = ['A','B','C']
+Y_Validas = ['1','2','3']
 HOST = input( "Ingresa la IP del servidor: ")
 
 while(True):
@@ -23,12 +24,7 @@ while(True):
             break
     input( "Verifica el puerto. Presiona enter para continuar ... ")
 
-def ImprimirTablero(aux):
-    global x
-    if x == 0:
-        x = aux
-    else :
-        return
+def ImprimirTablero():
     os.system("clear")
     print("")
     linea = "    "
@@ -78,47 +74,72 @@ def EnviarCoordenada(conn, dato):
         if( VerificarTiro(tiroCliente,l,datoRecibido) ):
             conn.sendall(pickle.dumps(tiroCliente))
 
+def Inicializar(nivel):
+    global l
+    global Y_Validas
+    global X_Validas
+    if( nivel  == 1 ):
+        l = 3
+    else:
+        l = 5
+        X_Validas.append('D')
+        X_Validas.append('E')
+        Y_Validas.append('4')
+        Y_Validas.append('5')
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as TCPClientSocket:    
     TCPClientSocket.connect((HOST, PORT))
-        
+    nivel = TCPClientSocket.recv(buffer_size).decode()
+
+    if( nivel == '0'):            
+        while(True):
+            nivel = input( "Ingresa el nivel de juego \n 1 - Principiante \n 2 - Avanzado\n Nivel : " )    
+            if (nivel.isdigit()):
+                if(0 < int(nivel) < 3):
+                    print("Enviando nivel de juego ...")
+                    TCPClientSocket.sendall(str.encode(nivel))
+                    break
+            input( "Nivel no valido, por favor intenta de nuevo. Presiona enter para continuar..." )
+
+    if(nivel == '3' or nivel == '1'):
+        Inicializar(1)
+    else:
+        Inicializar(2)    
+
     while(True):
-        nivel = input( "Ingresa el nivel de juego \n 1 - Principiante \n 2 - Avanzado\n Nivel : " )    
-        if (nivel.isdigit()):
-            if(0 < int(nivel) < 3):
-                X_Validas = ['A','B','C']
-                Y_Validas = ['1','2','3']
-
-                if( int( nivel ) == 1 ):
-                    l = 3
-                else:
-                    l = 5
-                    X_Validas.append('D')
-                    X_Validas.append('E')
-                    Y_Validas.append('4')
-                    Y_Validas.append('5')
-
-                print("Enviando nivel de juego ...")
-                TCPClientSocket.sendall(str.encode(nivel))
-                break
-        input( "Nivel no valido, por favor intenta de nuevo. Presiona enter para continuar..." )
-    
-    print("Esperando tablero de juego ...")
-    datoRecibido = pickle.loads(TCPClientSocket.recv(buffer_size))
-    tablero = datoRecibido
-    thread_read = threading.Thread(target=EnviarCoordenada, args=[TCPClientSocket, datoRecibido])
-    thread_read.start() 
+        datoRecibido = TCPClientSocket.recv(buffer_size)
+        os.system("clear")
+        if( datoRecibido.decode() == "0"):
+            print( "Todos los jugadores se han unido ...")
+            break
+        else:
+            print( "Esperando a " + datoRecibido.decode() + " jugadores ...")
 
     while(not JUEGO_TERMINADO):
-        ImprimirTablero(1)
-        print( "\nIngresa la coordenada de tu casilla con el formato letra,numero : ")
+        print("Esperando tablero de juego ...")
         datoRecibido = pickle.loads(TCPClientSocket.recv(buffer_size))
         tablero = datoRecibido
+
         if(datoRecibido[l] == 'FIN'):
             JUEGO_TERMINADO = True
             break
+        
+        if(datoRecibido[l+1]):
+            while(True):
+                os.system("clear")
+                ImprimirTablero()
+                print("Es tu turno")
+                tiroCliente = input( "Ingresa la coordenada de tu casilla con el formato letra,numero : \n")
+                if( VerificarTiro(tiroCliente,l,datoRecibido) ):
+                    TCPClientSocket.sendall(pickle.dumps(tiroCliente))
+                    break
+        else:
+            os.system("clear")
+            ImprimirTablero()            
+            print("Esperando a que el jugador " + datoRecibido[l+2] + " tire")
 
     os.system("clear")
-    ImprimirTablero(1)
+    ImprimirTablero()
     print( datoRecibido[ l+1 ] )
     print( datoRecibido[l + 2] )    
     print( "Pulsa enter para continuar ... " )

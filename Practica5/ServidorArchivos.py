@@ -174,7 +174,12 @@ while(True):
             ruta = ruta + directorio + "/"
     elif( opcion == "8"):
         directorio = SeleccionarArchivo(os.listdir(HOME + ruta), "eliminar", True)
-        BorrarDirectorio(HOME+ruta+directorio)
+        if(directorio == ""):
+            input("\t No hay directorios. Pulsa enter para continuar ... ")
+        else:
+            opcion = input("\t Eliminar directorio? Y/n: ")
+            if( opcion.lower() == "y"):
+                BorrarDirectorio(HOME+ruta+directorio)
     elif( opcion == "9"):
         RenombrarDirectorio()
     elif( opcion == "10"):

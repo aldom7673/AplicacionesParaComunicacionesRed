@@ -62,7 +62,7 @@ def CrearDirectorio(ruta):
 def BorrarDirectorio(ruta):
     contenidos = os.listdir(ruta)
     
-    for contenido in contenido:
+    for contenido in contenidos:
         if("." in contenido):
             os.remove(ruta + "/" + contenido)
         else:

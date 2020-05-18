@@ -21,14 +21,8 @@ def RenombrarArchivo(ruta):
         return
 
     nuevoNombre = input( "\t Ingresa el nuevo nombre para '" + nombreArchivo + "': ")
-    contenido = ""
     
-    with open(ruta + nombreArchivo, "r") as antiguoArchivo:
-        contenido = antiguoArchivo.read()
-    
-    with open(ruta + nuevoNombre + ".txt", "w") as nuevoArchivo:
-        nuevoArchivo.write(contenido)
-    os.remove(ruta + nombreArchivo)
+    CopiarArchivo(ruta + "/" + nombreArchivo, ruta + "/" + nuevoNombre + ".txt")
 
 def ModificarArchivo(ruta):
     nombreArchivo = SeleccionarArchivo(os.listdir(ruta), "modificar", False)
@@ -51,8 +45,7 @@ def BorrarArchivo(ruta):
     if( opcion.lower() == "y"):
         os.remove(ruta + nombreArchivo)
 
-def CrearDirectorio(ruta):
-    nombre = input( "\tIngresa el nombre del directorio: ")
+def CrearDirectorio(ruta, nombre):    
     if( not os.path.exists(ruta + nombre + "/") ):
         os.mkdir(ruta + nombre + "/")
         print( "\t" + "El directorio " + nombre + " se ha creado")
@@ -69,8 +62,25 @@ def BorrarDirectorio(ruta):
             BorrarDirectorio(ruta + "/" + contenido)
     os.rmdir(ruta)
 
-def RenombrarDirectorio():
-    print("Renombrar directorio")
+def RenombrarDirectorio(nuevoDirectorio, ruta):
+    contenidos = os.listdir(ruta)
+    for contenido in contenidos:
+        if("." in contenido):                        
+            CopiarArchivo(ruta + "/" + contenido, nuevoDirectorio + "/" + contenido)            
+        else:
+            CrearDirectorio(nuevoDirectorio + "/",contenido)
+            RenombrarDirectorio(nuevoDirectorio + "/" + contenido, ruta + "/" + contenido)
+    os.rmdir(ruta)
+
+def CopiarArchivo(original, copia):
+    contenido = ""
+    with open(original, "r") as archivo1:
+        contenido = archivo1.read()
+
+    with open(copia, "w") as archivo2:
+        archivo2.write(contenido)
+
+    os.remove(original)
 
 def ListarDirectorio(ruta):
     print( "Archivos en el directorio " + ( ruta.replace(HOME, "") ) )
@@ -142,8 +152,8 @@ while(True):
     ListarDirectorio(HOME + ruta)
 
     print("1. Crear archivo")
-    print("2. Abrir archivo")
-    print("3. Modificar archivo")
+    print("2. Ver archivo")
+    print("3. Modificar contenido del archivo")
     print("4. Renombrar archivo")
     print("5. Borrar archivo")
     print("6. Crear directorio")
@@ -166,8 +176,9 @@ while(True):
         RenombrarArchivo(HOME + ruta)
     elif( opcion == "5"):
         BorrarArchivo(HOME + ruta)
-    elif( opcion == "6"):        
-        CrearDirectorio(HOME + ruta)
+    elif( opcion == "6"):
+        nombre = input( "\tIngresa el nombre del directorio: ")
+        CrearDirectorio(HOME + ruta, nombre)
     elif( opcion == "7"):
         directorio = AbrirDirectorio(HOME + ruta)
         if(directorio != ""):
@@ -181,7 +192,10 @@ while(True):
             if( opcion.lower() == "y"):
                 BorrarDirectorio(HOME+ruta+directorio)
     elif( opcion == "9"):
-        RenombrarDirectorio()
+        directorio = SeleccionarArchivo(os.listdir(HOME + ruta), "renombrar", True)
+        nuevoDiretorio = input( "\tIngresa el nuevo nombre para " + directorio + " : ")
+        CrearDirectorio(HOME + ruta, nuevoDiretorio)        
+        RenombrarDirectorio(HOME + ruta + nuevoDiretorio, HOME + ruta + directorio)
     elif( opcion == "10"):
         ruta = RegresarDirectorio(HOME + ruta)
     elif( opcion == "11"):

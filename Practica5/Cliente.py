@@ -2,7 +2,7 @@ import os
 import xmlrpc.client
 import datetime
 
-gestorArchivos = xmlrpc.client.ServerProxy('http://localhost:8000')
+gestorArchivos = xmlrpc.client.ServerProxy('http://192.168.100.10:8000')
 
 def SeleccionarArchivo(ruta, accion, esDirectorio = False):
     archivos = gestorArchivos.ObtenerContenido(ruta)
@@ -52,15 +52,12 @@ while(True):
             aArchivos.append(archivo)
         else:
             aDirectorio.append(archivo)
-   
+    
     print("Te encuentras en la ruta : " + ruta)
-    print("Archivos: ")
+    for directorio in aDirectorio:
+        print("\t" + directorio)           
     for archivo in aArchivos:
         print("\t" + archivo)
-
-    print("\nDirectorios: ")
-    for directorio in aDirectorio:
-        print("\t" + directorio)
 
     print("\nOperaciones de archivos:")
     print("\t1. Crear archivo")

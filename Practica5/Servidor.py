@@ -10,7 +10,7 @@ class RequestHandler(SimpleXMLRPCRequestHandler):
 
 HOME = os.getcwd() + "/Index"
 
-with SimpleXMLRPCServer(('localhost', 8000),requestHandler=RequestHandler) as server:
+with SimpleXMLRPCServer(('192.168.100.10', 8000),requestHandler=RequestHandler) as server:
     server.register_introspection_functions()
 
     def CrearArchivo(nombre, r):
